@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Event Slot Booker</title>
+  <style>
+    * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; }
+    body { background-color: #f4f7f6; color: #333; padding: 20px; }
+    header { background-color: #2c3e50; color: white; padding: 20px; text-align: center; border-radius: 8px; margin-bottom: 20px; }
+    .container { max-width: 1000px; margin: 0 auto; grid-template-columns: 1fr 1fr; gap: 20px; display: grid; }
+    @media(max-width: 768px) { .container { grid-template-columns: 1fr; } }
+    .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 20px; }
+    h2 { margin-bottom: 15px; font-size: 1.2rem; color: #2c3e50; border-bottom: 2px solid #eee; padding-bottom: 5px; }
+    form { display: flex; flex-direction: column; gap: 10px; }
+    input, select, button { padding: 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 0.95rem; }
+    button { background-color: #3498db; color: white; font-weight: bold; cursor: pointer; border: none; transition: 0.2s; }
+    button:hover { background-color: #2980b9; }
+    .danger-btn { background-color: #e74c3c; margin-left: 5px; }
+    .danger-btn:hover { background-color: #c0392b; }
+    .slot-item { border: 1px solid #e0e0e0; padding: 15px; border-radius: 6px; margin-bottom: 10px; background: #fafafa; }
+    .slot-header { display: flex; justify-content: space-between; align-items: center; font-weight: bold; font-size: 1.1rem; }
+    .badge { padding: 3px 8px; border-radius: 12px; font-size: 0.8rem; color: white; }
+    .bg-green { background-color: #2ecc71; }
+    .bg-red { background-color: #e74c3c; }
+    .details { font-size: 0.85rem; color: #666; margin: 8px 0; }
+    .booking-list { margin-top: 10px; font-size: 0.85rem; background: #fff; padding: 10px; border-radius: 4px; border: 1px solid #ddd; }
+    .booking-item { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; border-bottom: 1px solid #eee; }
+    .message { padding: 10px; border-radius: 4px; margin-bottom: 10px; display: none; }
+    .success { background-color: #d4edda; color: #155724; }
+    .error { background-color: #f8d7da; color: #721c24; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>Event Slot Booking System</h1>
+    <p>Backend API & Management Dashboard</p>
+  </header>
+
+  <div id="alert" class="message"></div>
+
+  <div class="container">
+    <div>
+      <div class="card">
+        <h2>Create Event Slot</h2>
+        <form id="createSlotForm">
+          <input type="text" id="eventName" placeholder="Event Name" required>
+          <input type="date" id="date" required>
+          <input type="time" id="startTime" required>
+          <input type="time" id="endTime" required>
+          <input type="text" id="location" placeholder="Location" required>
+          <input type="number" id="capacity" placeholder="Capacity" min="1" required>
+          <button type="submit">Create Slot</button>
+        </form>
+      </div>
+
+      <div class="card">
+        <h2>Book a Slot</h2>
+        <form id="bookSlotForm">
+          <select id="slotSelect" required>
+            <option value="">Select Event Slot</option>
+          </select>
+          <input type="text" id="studentName" placeholder="Student Name" required>
+          <input type="email" id="email" placeholder="Student Email" required>
+          <input type="text" id="rollNo" placeholder="Roll Number (Optional)">
+          <button type="submit">Confirm Booking</button>
+        </form>
+      </div>
+    </div>
+
+    <div>
+      <div class="card">
+        <h2>Available Event Slots</h2>
+        <div id="slotsContainer">Loading slots...</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_URL = '/api';
+
+    function showAlert(msg, isError = false) {
+      const alert = document.getElementById('alert');
+      alert.textContent = msg;
+      alert.className = `message ${isError ? 'error' : 'success'}`;
+      alert.style.display = 'block';
+      setTimeout(() => alert.style.display = 'none', 4000);
+    }
+
+    async function fetchSlots() {
+      try {
+        const res = await fetch(`${API_URL}/slots`);
+        const data = await res.json();
+        if (!data.success) return;
+
+        const container = document.getElementById('slotsContainer');
+        const select = document.getElementById('slotSelect');
+        
+        container.innerHTML = '';
+        select.innerHTML = '<option value="">Select Event Slot</option>';
+
+        if (data.data.length === 0) {
+          container.innerHTML = '<p>No event slots found.</p>';
+          return;
+        }
+
+        data.data.forEach(slot => {
+          // Populate Select Box
+          if (slot.availableSeats > 0) {
+            const opt = document.createElement('option');
+            opt.value = slot._id;
+            opt.textContent = `${slot.eventName} (${slot.availableSeats} seats left)`;
+            select.appendChild(opt);
+          }
+
+          // Populate Slot Card
+          const div = document.createElement('div');
+          div.className = 'slot-item';
+          div.innerHTML = `
+            <div class="slot-header">
+              <span>${slot.eventName}</span>
+              <span class="badge ${slot.availableSeats > 0 ? 'bg-green' : 'bg-red'}">
+                ${slot.availableSeats} / ${slot.capacity} Seats Available
+              </span>
+            </div>
+            <div class="details">
+              📅 ${new Date(slot.date).toLocaleDateString()} | ⏰ ${slot.startTime} - ${slot.endTime} | 📍 ${slot.location}
+            </div>
+            <button onclick="viewBookings('${slot._id}')">View Bookings</button>
+            <button class="danger-btn" onclick="deleteSlot('${slot._id}')">Delete Slot</button>
+            <div id="bookings-${slot._id}" class="booking-list" style="display:none;"></div>
+          `;
+          container.appendChild(div);
+        });
+      } catch (err) {
+        showAlert('Failed to load slots', true);
+      }
+    }
+
+    document.getElementById('createSlotForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const payload = {
+        eventName: document.getElementById('eventName').value,
+        date: document.getElementById('date').value,
+        startTime: document.getElementById('startTime').value,
+        endTime: document.getElementById('endTime').value,
+        location: document.getElementById('location').value,
+        capacity: Number(document.getElementById('capacity').value)
+      };
+
+      const res = await fetch(`${API_URL}/slots`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (data.success) {
+        showAlert('Slot created successfully!');
+        document.getElementById('createSlotForm').reset();
+        fetchSlots();
+      } else {
+        showAlert(data.message, true);
+      }
+    });
+
+    document.getElementById('bookSlotForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const slotId = document.getElementById('slotSelect').value;
+      const payload = {
+        studentName: document.getElementById('studentName').value,
+        email: document.getElementById('email').value,
+        rollNo: document.getElementById('rollNo').value
+      };
+
+      const res = await fetch(`${API_URL}/slots/${slotId}/book`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (data.success) {
+        showAlert('Booking successful!');
+        document.getElementById('bookSlotForm').reset();
+        fetchSlots();
+      } else {
+        showAlert(data.message, true);
+      }
+    });
+
+    async function viewBookings(slotId) {
+      const el = document.getElementById(`bookings-${slotId}`);
+      if (el.style.display === 'block') {
+        el.style.display = 'none';
+        return;
+      }
+
+      const res = await fetch(`${API_URL}/slots/${slotId}/bookings`);
+      const data = await res.json();
+      if (!data.success) return;
+
+      if (data.data.length === 0) {
+        el.innerHTML = '<em>No active bookings yet.</em>';
+      } else {
+        el.innerHTML = data.data.map(b => `
+          <div class="booking-item">
+            <span><strong>${b.studentName}</strong> (${b.email})</span>
+            <button class="danger-btn" style="padding: 2px 6px; font-size: 0.75rem;" onclick="cancelBooking('${b._id}')">Cancel</button>
+          </div>
+        `).join('');
+      }
+      el.style.display = 'block';
+    }
+
+    async function cancelBooking(bookingId) {
+      if (!confirm('Cancel this booking?')) return;
+      const res = await fetch(`${API_URL}/bookings/${bookingId}/cancel`, { method: 'PATCH' });
+      const data = await res.json();
+      if (data.success) {
+        showAlert('Booking cancelled!');
+        fetchSlots();
+      } else {
+        showAlert(data.message, true);
+      }
+    }
+
+    async function deleteSlot(slotId) {
+      if (!confirm('Delete this event slot?')) return;
+      const res = await fetch(`${API_URL}/slots/${slotId}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (data.success) {
+        showAlert('Slot deleted successfully!');
+        fetchSlots();
+      } else {
+        showAlert(data.message, true);
+      }
+    }
+
+    fetchSlots();
+  </script>
+</body>
+</html>
